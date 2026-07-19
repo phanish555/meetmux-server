@@ -1,14 +1,25 @@
 const config = require('../config/env');
+const ApiError = require('../utils/ApiError');
 
 function notFound(req, res, next) {
-  res.status(404).json({ error: `Route not found: ${req.method} ${req.originalUrl}` });
+  next(new ApiError(404, 'ROUTE_NOT_FOUND', `No route for ${req.method} ${req.originalUrl}`));
 }
 
 function errorHandler(err, req, res, next) {
-  console.error(err.stack);
-  res.status(err.status || 500).json({
-    error: err.message || 'Internal Server Error',
-    ...(config.nodeEnv === 'development' && { stack: err.stack }),
+  const status = err.status || 500;
+  const code = err.code || 'INTERNAL_SERVER_ERROR';
+  const message = err.isOperational ? err.message : 'Something went wrong on our side';
+
+  if (status >= 500) console.error(err.stack);
+
+  res.status(status).json({
+    success: false,
+    error: {
+      code,
+      message,
+      details: err.details || [],
+      ...(config.nodeEnv === 'development' && status >= 500 && { stack: err.stack }),
+    },
   });
 }
 

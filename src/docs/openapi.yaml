@@ -1,0 +1,276 @@
+openapi: 3.0.3
+info:
+  title: PlaceMux API
+  version: 1.0.0-mock
+  description: >
+    Mock implementation of the PlaceMux placement platform API.
+    Response shapes and status codes are contractual and will not change
+    when real persistence replaces the mock data source.
+
+servers:
+  - url: http://localhost:3000/api/v1
+    description: Local development
+
+tags:
+  - name: Health
+  - name: Students
+  - name: Companies
+  - name: Jobs
+  - name: Applications
+
+paths:
+  /health:
+    get:
+      tags: [Health]
+      summary: Liveness check
+      responses:
+        '200':
+          description: Service is up
+
+  /ready:
+    get:
+      tags: [Health]
+      summary: Readiness check
+      responses:
+        '200':
+          description: Service is ready
+
+  /students:
+    get:
+      tags: [Students]
+      summary: List students (paginated, filterable)
+      parameters:
+        - { in: query, name: page,           schema: { type: integer, default: 1 } }
+        - { in: query, name: limit,          schema: { type: integer, default: 20, maximum: 100 } }
+        - { in: query, name: status,         schema: { type: string, enum: [seeking, placed, inactive] } }
+        - { in: query, name: branch,         schema: { type: string } }
+        - { in: query, name: graduationYear, schema: { type: integer } }
+        - { in: query, name: skill,          schema: { type: string } }
+        - { in: query, name: search,         schema: { type: string } }
+      responses:
+        '200':
+          description: Paginated list of students
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/Student' }
+                  meta: { $ref: '#/components/schemas/PaginationMeta' }
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+    post:
+      tags: [Students]
+      summary: Create a student
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/StudentCreate' }
+      responses:
+        '201':
+          description: Student created
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+
+  /students/{id}:
+    get:
+      tags: [Students]
+      summary: Get one student
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: string }, example: stu_001 }
+      responses:
+        '200':
+          description: The student
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /companies:
+    get:
+      tags: [Companies]
+      summary: List companies
+      parameters:
+        - { in: query, name: page,     schema: { type: integer, default: 1 } }
+        - { in: query, name: limit,    schema: { type: integer, default: 20, maximum: 100 } }
+        - { in: query, name: industry, schema: { type: string } }
+        - { in: query, name: verified, schema: { type: boolean } }
+        - { in: query, name: search,   schema: { type: string } }
+      responses:
+        '200':
+          description: Paginated list of companies
+
+  /companies/{id}:
+    get:
+      tags: [Companies]
+      summary: Get one company
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: string }, example: cmp_001 }
+      responses:
+        '200':
+          description: The company
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /jobs:
+    get:
+      tags: [Jobs]
+      summary: List jobs
+      parameters:
+        - { in: query, name: page,       schema: { type: integer, default: 1 } }
+        - { in: query, name: limit,      schema: { type: integer, default: 20, maximum: 100 } }
+        - { in: query, name: companyId,  schema: { type: string } }
+        - { in: query, name: type,       schema: { type: string, enum: [internship, full-time] } }
+        - { in: query, name: location,   schema: { type: string } }
+        - { in: query, name: minStipend, schema: { type: integer } }
+        - { in: query, name: skill,      schema: { type: string } }
+      responses:
+        '200':
+          description: Paginated list of jobs
+
+  /jobs/{id}:
+    get:
+      tags: [Jobs]
+      summary: Get one job
+      parameters:
+        - { in: path,  name: id,     required: true, schema: { type: string }, example: job_001 }
+        - { in: query, name: expand, schema: { type: string, enum: [company] } }
+      responses:
+        '200':
+          description: The job (optionally with expanded company)
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /applications:
+    get:
+      tags: [Applications]
+      summary: List applications
+      parameters:
+        - { in: query, name: page,      schema: { type: integer, default: 1 } }
+        - { in: query, name: limit,     schema: { type: integer, default: 20, maximum: 100 } }
+        - { in: query, name: studentId, schema: { type: string } }
+        - { in: query, name: jobId,     schema: { type: string } }
+        - { in: query, name: status,    schema: { type: string, enum: [submitted, under-review, shortlisted, rejected, offered] } }
+      responses:
+        '200':
+          description: Paginated list of applications
+
+    post:
+      tags: [Applications]
+      summary: Apply to a job
+      parameters:
+        - in: header
+          name: Idempotency-Key
+          required: false
+          schema: { type: string }
+          description: Send the same key to safely retry without creating duplicates.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [studentId, jobId]
+              properties:
+                studentId: { type: string, example: stu_001 }
+                jobId:     { type: string, example: job_002 }
+      responses:
+        '200': { description: Replayed - application already existed for this key }
+        '201': { description: Application created }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /applications/{id}:
+    patch:
+      tags: [Applications]
+      summary: Update application status
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: string }, example: app_001 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status: { type: string, enum: [submitted, under-review, shortlisted, rejected, offered] }
+      responses:
+        '200': { description: Updated }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+components:
+  schemas:
+    Student:
+      type: object
+      properties:
+        id:             { type: string, example: stu_001 }
+        name:           { type: string, example: Aarav Sharma }
+        email:          { type: string, format: email }
+        branch:         { type: string, example: Computer Science }
+        graduationYear: { type: integer, example: 2026 }
+        cgpa:           { type: number, nullable: true, example: 8.4 }
+        skills:         { type: array, items: { type: string } }
+        status:         { type: string, enum: [seeking, placed, inactive] }
+        createdAt:      { type: string, format: date-time }
+
+    StudentCreate:
+      type: object
+      required: [name, email, branch, graduationYear]
+      properties:
+        name:           { type: string }
+        email:          { type: string, format: email }
+        branch:         { type: string }
+        graduationYear: { type: integer }
+        cgpa:           { type: number }
+        skills:         { type: array, items: { type: string } }
+        status:         { type: string, enum: [seeking, placed, inactive] }
+
+    PaginationMeta:
+      type: object
+      properties:
+        page:       { type: integer }
+        limit:      { type: integer }
+        total:      { type: integer }
+        totalPages: { type: integer }
+        hasNext:    { type: boolean }
+        hasPrev:    { type: boolean }
+
+    Error:
+      type: object
+      properties:
+        success: { type: boolean, example: false }
+        error:
+          type: object
+          properties:
+            code:    { type: string, example: RESOURCE_NOT_FOUND }
+            message: { type: string }
+            details: { type: array, items: { type: object } }
+
+  responses:
+    BadRequest:
+      description: Invalid query or path parameters
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    NotFound:
+      description: Resource does not exist
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Conflict:
+      description: Resource already exists
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    ValidationFailed:
+      description: Body failed validation
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
