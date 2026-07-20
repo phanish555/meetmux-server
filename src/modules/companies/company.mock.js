@@ -1,0 +1,32 @@
+module.exports = [
+  {
+    id: 'cmp_001',
+    name: 'Nimbus Analytics',
+    industry: 'Data & Analytics',
+    location: 'Bengaluru, India',
+    employeeCount: 450,
+    verified: true,
+    createdAt: '2025-11-02T09:15:00.000Z',
+    updatedAt: '2025-11-02T09:15:00.000Z',
+  },
+  {
+    id: 'cmp_002',
+    name: 'Kaveri Fintech',
+    industry: 'Financial Services',
+    location: 'Hyderabad, India',
+    employeeCount: 1200,
+    verified: true,
+    createdAt: '2025-11-14T11:40:00.000Z',
+    updatedAt: '2025-11-14T11:40:00.000Z',
+  },
+  {
+    id: 'cmp_003',
+    name: 'Orbital Logistics',
+    industry: 'Supply Chain',
+    location: 'Pune, India',
+    employeeCount: 230,
+    verified: false,
+    createdAt: '2026-01-08T07:05:00.000Z',
+    updatedAt: '2026-01-08T07:05:00.000Z',
+  },
+];

@@ -5,7 +5,9 @@
   "main": "src/server.js",
   "scripts": {
     "start": "node src/server.js",
-    "dev": "nodemon src/server.js"
+    "dev": "nodemon src/server.js",
+    "demo:service": "node scripts/demo-service.js",
+    "check:layers": "! grep -rn --include='*.service.js' --include='*.repository.js' -E '\\breq\\.|\\bres\\.' src/modules"
   },
   "keywords": [],
   "author": "",
