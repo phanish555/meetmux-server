@@ -1,6 +1,6 @@
 # PlaceMux API — Mock Server
 
-Node.js/Express backend for the PlaceMux placement platform. Serves a fully documented mock of the v1 API so the frontend can build against a stable contract before real persistence lands.
+Node.js/Express backend for the PlaceMux placement platform. Task 3 organises the code into feature modules with strict layer boundaries, standardises pagination/filtering/sorting behind a shared query parser, and ships architecture docs (ERD, invariants, ADRs).
 
 ## Requirements
 
@@ -28,78 +28,109 @@ cp .env.example .env
 ## Running
 
 ```bash
-npm run dev     # development, auto-restarts on save
-npm start       # production
+npm run dev            # development, auto-restart
+npm start              # production
+npm run demo:service   # runs the service layer with no HTTP server (proof of decoupling)
+npm run check:layers   # fails if a service/repository imports req./res.
 ```
-
-Server starts at `http://localhost:3000`.
 
 - Interactive docs (Swagger UI): **http://localhost:3000/api/docs**
 - Base API URL: **http://localhost:3000/api/v1**
 
-## API Contract (Mock — v1)
+## Architecture
+
+See **[`src/docs/ARCHITECTURE.md`](src/docs/ARCHITECTURE.md)** for the full picture — ERD, relationships, invariants (INV-1…INV-8), layer contract, route conventions (R1…R10), and directory layout.
+
+Key ADRs:
+- [ADR-001](src/docs/adr/0001-layered-architecture.md) — feature-module organisation
+- [ADR-002](src/docs/adr/0002-offset-pagination.md) — offset over cursor for v1
+- [ADR-003](src/docs/adr/0003-strict-query-parsing.md) — reject unknown filters
+- [ADR-004](src/docs/adr/0004-flat-canonical-paths.md) — flat writes, one-level nested reads
+
+### The layer contract
+
+```
+route → controller → service → repository → data source
+```
+
+- Route files contain **no logic** — just URL → handler mapping
+- Controllers **never** contain business rules — parse → call service → format
+- Services **never** touch `req`/`res` — enforced by `npm run check:layers`
+- Repositories only do data access; every method is `async`, ready for a real DB
+
+## API Contract
 
 ### Response envelope
 
-Every success:
-```json
-{ "success": true, "data": {}, "meta": {} }
-```
-
-Every error:
-```json
-{ "success": false, "error": { "code": "...", "message": "...", "details": [] } }
-```
-
-`meta` is present on paginated list responses.
+Success: `{ "success": true, "data": ..., "meta": ... }`
+Error:   `{ "success": false, "error": { "code": "...", "message": "...", "details": [...] } }`
 
 ### Status codes
 
-| Code | When |
+| Code | Meaning |
 | ---- | ---- |
-| 200  | Successful read, update, or idempotent replay |
+| 200  | Read, update, or idempotent replay |
 | 201  | Resource created |
-| 400  | Malformed body, bad query/path parameter, or invalid reference |
-| 404  | Resource or route does not exist |
-| 409  | Resource already exists (natural-key duplicate) |
-| 422  | Request body failed field validation |
+| 400  | Malformed parameter or bad reference |
+| 404  | Resource or route not found |
+| 409  | Conflict, duplicate, or illegal state transition |
+| 422  | Body failed validation |
 | 500  | Unhandled server error |
 
 ### Error codes
 
-`ROUTE_NOT_FOUND`, `RESOURCE_NOT_FOUND`, `RESOURCE_CONFLICT`,
-`VALIDATION_FAILED`, `BAD_REQUEST`, `MALFORMED_JSON`, `INTERNAL_SERVER_ERROR`
+`ROUTE_NOT_FOUND`, `RESOURCE_NOT_FOUND`, `RESOURCE_CONFLICT`, `INVALID_STATE_TRANSITION`, `VALIDATION_FAILED`, `BAD_REQUEST`, `MALFORMED_JSON`, `INTERNAL_SERVER_ERROR`
 
-Branch on `error.code`, never on `error.message` — messages may be reworded without notice.
+Branch on `error.code`, never on `error.message`.
 
-### Endpoints
+### Endpoints (all under `/api/v1`)
 
-| Method | Path                     | Query / headers                                                   | Codes                    |
-| ------ | ------------------------ | ----------------------------------------------------------------- | ------------------------ |
-| GET    | `/health`                | —                                                                 | 200                      |
-| GET    | `/ready`                 | —                                                                 | 200                      |
-| GET    | `/students`              | page, limit, status, branch, graduationYear, skill, search        | 200, 400                 |
-| GET    | `/students/:id`          | —                                                                 | 200, 404                 |
-| POST   | `/students`              | —                                                                 | 201, 409, 422            |
-| GET    | `/companies`             | page, limit, industry, verified, search                           | 200, 400                 |
-| GET    | `/companies/:id`         | —                                                                 | 200, 404                 |
-| GET    | `/jobs`                  | page, limit, companyId, type, location, minStipend, skill         | 200, 400                 |
-| GET    | `/jobs/:id`              | `expand=company`                                                  | 200, 404                 |
-| GET    | `/applications`          | page, limit, studentId, jobId, status                             | 200, 400                 |
-| POST   | `/applications`          | header: `Idempotency-Key`                                         | 201, 200, 400, 409, 422  |
-| PATCH  | `/applications/:id`      | —                                                                 | 200, 400, 404, 422       |
+| Method | Path                                        | Codes                    |
+| ------ | ------------------------------------------- | ------------------------ |
+| GET    | `/health`, `/ready`                         | 200                      |
+| GET    | `/students`                                 | 200, 400                 |
+| POST   | `/students`                                 | 201, 409, 422            |
+| GET    | `/students/:id`                             | 200, 404                 |
+| PATCH  | `/students/:id`                             | 200, 404, 422            |
+| GET    | `/students/:id/applications`                | 200, 404                 |
+| GET    | `/companies`                                | 200, 400                 |
+| POST   | `/companies`                                | 201, 409, 422            |
+| GET    | `/companies/:id`                            | 200, 404                 |
+| PATCH  | `/companies/:id`                            | 200, 404, 422            |
+| GET    | `/companies/:id/jobs`                       | 200, 400, 404            |
+| GET    | `/jobs`                                     | 200, 400                 |
+| POST   | `/jobs`                                     | 201, 400, 422            |
+| GET    | `/jobs/:id`                                 | 200, 404                 |
+| PATCH  | `/jobs/:id`                                 | 200, 404, 422            |
+| GET    | `/jobs/:id/applications`                    | 200, 400, 404            |
+| GET    | `/applications`                             | 200, 400                 |
+| POST   | `/applications`                             | 201, 200, 400, 409, 422  |
+| GET    | `/applications/:id`                         | 200, 404                 |
+| PATCH  | `/applications/:id/status`                  | 200, 404, 409, 422       |
+| POST   | `/applications/:id/withdrawal`              | 201, 404, 409            |
+| GET    | `/applications/:id/interviews`              | 200, 400, 404            |
+| GET    | `/interviews`                               | 200, 400                 |
+| POST   | `/interviews`                               | 201, 400, 409, 422       |
+| GET    | `/interviews/:id`                           | 200, 404                 |
 
-All paths are prefixed with `/api/v1`.
+### Query behavior (identical across every list endpoint)
 
-### Pagination
+- **Pagination:** `?page=1&limit=20` (limit max 100). `meta.pagination` has `page/limit/total/totalPages/hasNext/hasPrev`.
+- **Sorting:** `?sort=-createdAt,title` (`-` = descending). Allow-listed per module.
+- **Filtering:** allow-listed per module in `<module>.queryschema.js`. **Unknown filters return 400**, not silently ignored (see ADR-003).
+- **Sparse fields:** `?fields=id,title` restricts the payload to those keys.
+- **Expansion:** `?expand=company` on `GET /jobs/:id` inlines the company object.
+- **Search:** `?search=aarav` (free text over searchable fields).
 
-All list endpoints paginate. Default `limit` is `20`, maximum `100`.
+Example that exercises all of them at once:
 
-`meta` carries `page`, `limit`, `total`, `totalPages`, `hasNext`, `hasPrev`.
+```
+GET /jobs?type=internship&sort=-stipend&fields=id,title,stipend&limit=5
+```
 
 ### Idempotency
 
-`POST /applications` accepts an optional `Idempotency-Key` header. Reusing a key returns **200** with the original record instead of creating a duplicate. Applying twice to the same job without a key returns **409**.
+`POST /applications` accepts an optional `Idempotency-Key` header. Reusing a key returns **200** with the original record; the natural-key duplicate (same student + job, no key) returns **409**.
 
 ### Application status state machine
 
@@ -109,47 +140,60 @@ under-review → shortlisted, rejected
 shortlisted  → offered, rejected
 offered      → (terminal)
 rejected     → (terminal)
+withdrawn    → (terminal)
 ```
 
-Illegal transitions return **400** with the list of allowed next states.
+Illegal moves return **409** with error code `INVALID_STATE_TRANSITION`.
 
-## Mock data
+`POST /applications/:id/withdrawal` is a sub-resource action (rule R7) that transitions to `withdrawn` and stamps `withdrawnAt`.
 
-All responses are served from `src/mocks/`. Data resets on every restart. Reads defensively copy records so callers cannot mutate the source arrays.
+## Data-source swap path
 
-## Swapping mocks for real data
+Data access lives in `src/modules/<name>/<name>.repository.js`. Every method is `async`. To move to a real database:
 
-Data access is isolated behind `src/services/repositories/`. To move to a real database:
-
-1. Add `student.db.repo.js` (etc.) implementing the same async methods (`findAll`, `findById`, `findByEmail`, `create`, …) with identical signatures.
-2. Update the exports in `src/services/repositories/index.js` to point at the new implementations when `DATA_SOURCE !== 'mock'`.
-3. Set `DATA_SOURCE=postgres` in `.env`.
+1. Replace `<module>.repository.js` with a DB-backed implementation using the same method names.
+2. Set `DATA_SOURCE=postgres` in `.env`.
 
 No controller, route, validator, or response shape changes. The contract holds.
 
 ## Postman
 
-Import `postman/PlaceMux.postman_collection.json` into Postman. The collection ships with test scripts that assert status codes, envelope shape, and the idempotency replay behavior. Set (or leave) the `baseUrl` collection variable at `http://localhost:3000/api/v1`.
+Import `postman/PlaceMux.postman_collection.json`. The collection tests status codes, envelope shape, and the idempotency replay behavior.
 
 ## Project structure
 
 ```
 src/
-├── config/          Environment loading and validation
-├── mocks/           Fake domain data (students, companies, jobs, applications)
-├── routes/          URL → controller mapping
-├── controllers/     Request/response wiring
-├── services/        Business logic
-│   └── repositories/  Data-access layer (swap point for a real DB)
-├── validators/      Input validation
-├── utils/           apiResponse, ApiError, asyncHandler, paginate
-├── middleware/      Central error handling + logging
-├── docs/            openapi.yaml (served at /api/docs)
-├── app.js           Express app assembly
-└── server.js        Server bootstrap
+├── config/env.js
+├── shared/
+│   ├── errors/ApiError.js
+│   ├── http/{apiResponse,asyncHandler}.js
+│   ├── query/{queryParser,listQuery}.js
+│   └── middleware/{requestLogger,errorHandler}.js
+├── modules/
+│   ├── health/
+│   ├── students/     (routes, controller, service, repository, validator, dto, queryschema, mock)
+│   ├── companies/
+│   ├── jobs/
+│   ├── applications/
+│   └── interviews/
+├── docs/
+│   ├── openapi.yaml       (served at /api/docs)
+│   ├── ARCHITECTURE.md
+│   └── adr/               (0001-0004)
+├── routes.js               (single mount point)
+├── app.js
+└── server.js
+
+scripts/
+└── demo-service.js         (proof the service layer has no HTTP dependency)
+
+postman/
+└── PlaceMux.postman_collection.json
 ```
 
 ## Notes
 
 - `.env` is gitignored. Copy `.env.example` and fill it in.
 - `helmet` and `cors` are enabled by default.
+- Data resets on every restart (mock repository).
