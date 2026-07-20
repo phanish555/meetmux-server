@@ -6,6 +6,7 @@ info:
     Mock implementation of the PlaceMux placement platform API.
     Response shapes and status codes are contractual and will not change
     when real persistence replaces the mock data source.
+    See ARCHITECTURE.md for full conventions.
 
 servers:
   - url: http://localhost:3000/api/v1
@@ -17,6 +18,7 @@ tags:
   - name: Companies
   - name: Jobs
   - name: Applications
+  - name: Interviews
 
 paths:
   /health:
@@ -24,45 +26,32 @@ paths:
       tags: [Health]
       summary: Liveness check
       responses:
-        '200':
-          description: Service is up
+        '200': { description: Service is up }
 
   /ready:
     get:
       tags: [Health]
       summary: Readiness check
       responses:
-        '200':
-          description: Service is ready
+        '200': { description: Service is ready }
 
   /students:
     get:
       tags: [Students]
-      summary: List students (paginated, filterable)
+      summary: List students
       parameters:
-        - { in: query, name: page,           schema: { type: integer, default: 1 } }
-        - { in: query, name: limit,          schema: { type: integer, default: 20, maximum: 100 } }
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Sort'
+        - $ref: '#/components/parameters/Fields'
+        - $ref: '#/components/parameters/Search'
         - { in: query, name: status,         schema: { type: string, enum: [seeking, placed, inactive] } }
         - { in: query, name: branch,         schema: { type: string } }
         - { in: query, name: graduationYear, schema: { type: integer } }
         - { in: query, name: skill,          schema: { type: string } }
-        - { in: query, name: search,         schema: { type: string } }
       responses:
-        '200':
-          description: Paginated list of students
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success: { type: boolean, example: true }
-                  data:
-                    type: array
-                    items: { $ref: '#/components/schemas/Student' }
-                  meta: { $ref: '#/components/schemas/PaginationMeta' }
-        '400':
-          $ref: '#/components/responses/BadRequest'
-
+        '200': { description: Paginated list of students }
+        '400': { $ref: '#/components/responses/BadRequest' }
     post:
       tags: [Students]
       summary: Create a student
@@ -72,12 +61,9 @@ paths:
           application/json:
             schema: { $ref: '#/components/schemas/StudentCreate' }
       responses:
-        '201':
-          description: Student created
-        '409':
-          $ref: '#/components/responses/Conflict'
-        '422':
-          $ref: '#/components/responses/ValidationFailed'
+        '201': { description: Student created }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
 
   /students/{id}:
     get:
@@ -86,24 +72,64 @@ paths:
       parameters:
         - { in: path, name: id, required: true, schema: { type: string }, example: stu_001 }
       responses:
-        '200':
-          description: The student
-        '404':
-          $ref: '#/components/responses/NotFound'
+        '200': { description: The student }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      tags: [Students]
+      summary: Update a student
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: string }, example: stu_001 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/StudentUpdate' }
+      responses:
+        '200': { description: Updated }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+
+  /students/{id}/applications:
+    get:
+      tags: [Students, Applications]
+      summary: List applications for a student (nested read)
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: string }, example: stu_001 }
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Sort'
+      responses:
+        '200': { description: Applications for the given student }
+        '404': { $ref: '#/components/responses/NotFound' }
 
   /companies:
     get:
       tags: [Companies]
       summary: List companies
       parameters:
-        - { in: query, name: page,     schema: { type: integer, default: 1 } }
-        - { in: query, name: limit,    schema: { type: integer, default: 20, maximum: 100 } }
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Sort'
+        - $ref: '#/components/parameters/Fields'
+        - $ref: '#/components/parameters/Search'
         - { in: query, name: industry, schema: { type: string } }
         - { in: query, name: verified, schema: { type: boolean } }
-        - { in: query, name: search,   schema: { type: string } }
+        - { in: query, name: location, schema: { type: string } }
       responses:
-        '200':
-          description: Paginated list of companies
+        '200': { description: Paginated list of companies }
+        '400': { $ref: '#/components/responses/BadRequest' }
+    post:
+      tags: [Companies]
+      summary: Create a company
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CompanyCreate' }
+      responses:
+        '201': { description: Company created }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
 
   /companies/{id}:
     get:
@@ -112,54 +138,118 @@ paths:
       parameters:
         - { in: path, name: id, required: true, schema: { type: string }, example: cmp_001 }
       responses:
-        '200':
-          description: The company
-        '404':
-          $ref: '#/components/responses/NotFound'
+        '200': { description: The company }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      tags: [Companies]
+      summary: Update a company
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: string }, example: cmp_001 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CompanyUpdate' }
+      responses:
+        '200': { description: Updated }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+
+  /companies/{id}/jobs:
+    get:
+      tags: [Companies, Jobs]
+      summary: List jobs for a company (nested read)
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: string }, example: cmp_001 }
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Sort'
+      responses:
+        '200': { description: Jobs at that company }
+        '404': { $ref: '#/components/responses/NotFound' }
 
   /jobs:
     get:
       tags: [Jobs]
       summary: List jobs
       parameters:
-        - { in: query, name: page,       schema: { type: integer, default: 1 } }
-        - { in: query, name: limit,      schema: { type: integer, default: 20, maximum: 100 } }
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Sort'
+        - $ref: '#/components/parameters/Fields'
+        - $ref: '#/components/parameters/Search'
         - { in: query, name: companyId,  schema: { type: string } }
         - { in: query, name: type,       schema: { type: string, enum: [internship, full-time] } }
         - { in: query, name: location,   schema: { type: string } }
         - { in: query, name: minStipend, schema: { type: integer } }
         - { in: query, name: skill,      schema: { type: string } }
       responses:
-        '200':
-          description: Paginated list of jobs
+        '200': { description: Paginated list of jobs }
+        '400': { $ref: '#/components/responses/BadRequest' }
+    post:
+      tags: [Jobs]
+      summary: Create a job
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/JobCreate' }
+      responses:
+        '201': { description: Job created }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
 
   /jobs/{id}:
     get:
       tags: [Jobs]
       summary: Get one job
       parameters:
-        - { in: path,  name: id,     required: true, schema: { type: string }, example: job_001 }
-        - { in: query, name: expand, schema: { type: string, enum: [company] } }
+        - { in: path, name: id, required: true, schema: { type: string }, example: job_001 }
+        - $ref: '#/components/parameters/Expand'
       responses:
-        '200':
-          description: The job (optionally with expanded company)
-        '404':
-          $ref: '#/components/responses/NotFound'
+        '200': { description: The job (optionally with expanded company) }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      tags: [Jobs]
+      summary: Update a job
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: string }, example: job_001 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/JobUpdate' }
+      responses:
+        '200': { description: Updated }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+
+  /jobs/{id}/applications:
+    get:
+      tags: [Jobs, Applications]
+      summary: List applications for a job (nested read)
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: string }, example: job_001 }
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200': { description: Applications for that job }
+        '404': { $ref: '#/components/responses/NotFound' }
 
   /applications:
     get:
       tags: [Applications]
       summary: List applications
       parameters:
-        - { in: query, name: page,      schema: { type: integer, default: 1 } }
-        - { in: query, name: limit,     schema: { type: integer, default: 20, maximum: 100 } }
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Sort'
         - { in: query, name: studentId, schema: { type: string } }
         - { in: query, name: jobId,     schema: { type: string } }
-        - { in: query, name: status,    schema: { type: string, enum: [submitted, under-review, shortlisted, rejected, offered] } }
+        - { in: query, name: status,    schema: { type: string, enum: [submitted, under-review, shortlisted, rejected, offered, withdrawn] } }
       responses:
-        '200':
-          description: Paginated list of applications
-
+        '200': { description: Paginated list of applications }
+        '400': { $ref: '#/components/responses/BadRequest' }
     post:
       tags: [Applications]
       summary: Apply to a job
@@ -180,15 +270,25 @@ paths:
                 studentId: { type: string, example: stu_001 }
                 jobId:     { type: string, example: job_002 }
       responses:
-        '200': { description: Replayed - application already existed for this key }
+        '200': { description: Replayed — application already existed for this key }
         '201': { description: Application created }
         '400': { $ref: '#/components/responses/BadRequest' }
         '409': { $ref: '#/components/responses/Conflict' }
 
   /applications/{id}:
+    get:
+      tags: [Applications]
+      summary: Get one application
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: string }, example: app_001 }
+      responses:
+        '200': { description: The application }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /applications/{id}/status:
     patch:
       tags: [Applications]
-      summary: Update application status
+      summary: Update application status (constrained by state machine)
       parameters:
         - { in: path, name: id, required: true, schema: { type: string }, example: app_001 }
       requestBody:
@@ -199,13 +299,116 @@ paths:
               type: object
               required: [status]
               properties:
-                status: { type: string, enum: [submitted, under-review, shortlisted, rejected, offered] }
+                status: { type: string, enum: [submitted, under-review, shortlisted, rejected, offered, withdrawn] }
       responses:
         '200': { description: Updated }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { description: Illegal state transition }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+
+  /applications/{id}/withdrawal:
+    post:
+      tags: [Applications]
+      summary: Withdraw an application (sub-resource action)
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: string }, example: app_001 }
+      responses:
+        '201': { description: Withdrawn }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { description: Already withdrawn or invalid current state }
+
+  /applications/{id}/interviews:
+    get:
+      tags: [Applications, Interviews]
+      summary: List interviews for an application (nested read)
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: string }, example: app_001 }
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200': { description: Interviews for that application }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /interviews:
+    get:
+      tags: [Interviews]
+      summary: List interviews
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Sort'
+        - { in: query, name: applicationId, schema: { type: string } }
+        - { in: query, name: outcome,       schema: { type: string, enum: [pending, passed, failed] } }
+        - { in: query, name: round,         schema: { type: integer } }
+      responses:
+        '200': { description: Paginated list of interviews }
         '400': { $ref: '#/components/responses/BadRequest' }
+    post:
+      tags: [Interviews]
+      summary: Schedule an interview
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [applicationId, round, scheduledAt]
+              properties:
+                applicationId: { type: string, example: app_001 }
+                round:         { type: integer, minimum: 1, example: 3 }
+                scheduledAt:   { type: string, format: date-time }
+                outcome:       { type: string, enum: [pending, passed, failed], default: pending }
+      responses:
+        '201': { description: Interview scheduled }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '409': { description: Round already exists for this application (INV-8) }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+
+  /interviews/{id}:
+    get:
+      tags: [Interviews]
+      summary: Get one interview
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: string }, example: int_001 }
+      responses:
+        '200': { description: The interview }
         '404': { $ref: '#/components/responses/NotFound' }
 
 components:
+  parameters:
+    Page:
+      in: query
+      name: page
+      schema: { type: integer, minimum: 1, default: 1 }
+      description: 1-based page number
+    Limit:
+      in: query
+      name: limit
+      schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+      description: Items per page (1–100)
+    Sort:
+      in: query
+      name: sort
+      schema: { type: string }
+      description: "Comma-separated fields. Prefix with '-' for descending. e.g. -createdAt,title"
+      example: "-createdAt"
+    Fields:
+      in: query
+      name: fields
+      schema: { type: string }
+      description: Comma-separated allow-listed fields to return.
+      example: "id,name"
+    Search:
+      in: query
+      name: search
+      schema: { type: string }
+      description: Free-text search over the module's searchable fields.
+    Expand:
+      in: query
+      name: expand
+      schema: { type: string }
+      description: Comma-separated allow-listed related resources to inline.
+
   schemas:
     Student:
       type: object
@@ -219,7 +422,7 @@ components:
         skills:         { type: array, items: { type: string } }
         status:         { type: string, enum: [seeking, placed, inactive] }
         createdAt:      { type: string, format: date-time }
-
+        updatedAt:      { type: string, format: date-time }
     StudentCreate:
       type: object
       required: [name, email, branch, graduationYear]
@@ -231,6 +434,56 @@ components:
         cgpa:           { type: number }
         skills:         { type: array, items: { type: string } }
         status:         { type: string, enum: [seeking, placed, inactive] }
+    StudentUpdate:
+      type: object
+      properties:
+        name:           { type: string }
+        branch:         { type: string }
+        graduationYear: { type: integer }
+        cgpa:           { type: number }
+        skills:         { type: array, items: { type: string } }
+        status:         { type: string, enum: [seeking, placed, inactive] }
+
+    CompanyCreate:
+      type: object
+      required: [name, industry, location]
+      properties:
+        name:          { type: string }
+        industry:      { type: string }
+        location:      { type: string }
+        employeeCount: { type: integer, minimum: 0 }
+        verified:      { type: boolean }
+    CompanyUpdate:
+      type: object
+      properties:
+        name:          { type: string }
+        industry:      { type: string }
+        location:      { type: string }
+        employeeCount: { type: integer, minimum: 0 }
+        verified:      { type: boolean }
+
+    JobCreate:
+      type: object
+      required: [companyId, title, location, type, deadline]
+      properties:
+        companyId: { type: string, example: cmp_001 }
+        title:     { type: string }
+        location:  { type: string }
+        type:      { type: string, enum: [internship, full-time] }
+        stipend:   { type: number, nullable: true }
+        skills:    { type: array, items: { type: string } }
+        openings:  { type: integer, minimum: 1 }
+        deadline:  { type: string, format: date }
+    JobUpdate:
+      type: object
+      properties:
+        title:    { type: string }
+        location: { type: string }
+        type:     { type: string, enum: [internship, full-time] }
+        stipend:  { type: number, nullable: true }
+        skills:   { type: array, items: { type: string } }
+        openings: { type: integer, minimum: 1 }
+        deadline: { type: string, format: date }
 
     PaginationMeta:
       type: object
@@ -255,22 +508,22 @@ components:
 
   responses:
     BadRequest:
-      description: Invalid query or path parameters
+      description: Invalid query, path, or reference
       content:
         application/json:
           schema: { $ref: '#/components/schemas/Error' }
     NotFound:
-      description: Resource does not exist
+      description: Resource or route does not exist
       content:
         application/json:
           schema: { $ref: '#/components/schemas/Error' }
     Conflict:
-      description: Resource already exists
+      description: Duplicate or illegal state
       content:
         application/json:
           schema: { $ref: '#/components/schemas/Error' }
     ValidationFailed:
-      description: Body failed validation
+      description: Body failed field-level validation
       content:
         application/json:
           schema: { $ref: '#/components/schemas/Error' }
