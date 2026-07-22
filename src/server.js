@@ -9,7 +9,21 @@ const server = app.listen(config.port, () => {
   console.log(`   API docs:     http://localhost:${config.port}/api/docs`);
 });
 
-process.on('SIGINT', () => {
-  console.log('\nShutting down gracefully...');
-  server.close(() => process.exit(0));
-});
+async function shutdown(signal) {
+  console.log(`\nReceived ${signal}. Shutting down gracefully...`);
+  server.close(async () => {
+    if (config.dataSource === 'postgres') {
+      try {
+        const prisma = require('./shared/prisma');
+        await prisma.$disconnect();
+        console.log('Prisma disconnected.');
+      } catch (e) {
+        console.error('Error disconnecting Prisma:', e);
+      }
+    }
+    process.exit(0);
+  });
+}
+
+process.on('SIGINT', () => shutdown('SIGINT'));
+process.on('SIGTERM', () => shutdown('SIGTERM'));

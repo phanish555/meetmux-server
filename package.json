@@ -7,13 +7,23 @@
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
     "demo:service": "node scripts/demo-service.js",
-    "check:layers": "! grep -rn --include='*.service.js' --include='*.repository.js' -E '\\breq\\.|\\bres\\.' src/modules"
+    "check:layers": "! grep -rn --include='*.service.js' --include='*.repository.js' -E '\\breq\\.|\\bres\\.' src/modules",
+    "db:migrate": "prisma migrate dev",
+    "db:deploy": "prisma migrate deploy",
+    "db:studio": "prisma studio",
+    "db:seed": "node prisma/seed.js",
+    "db:reset": "prisma migrate reset --force --skip-seed && npm run db:seed",
+    "db:constraints": "node scripts/prove-constraints.js"
+  },
+  "prisma": {
+    "seed": "node prisma/seed.js"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
+    "@prisma/client": "^6.19.3",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
@@ -22,6 +32,12 @@
     "yamljs": "^0.3.0"
   },
   "devDependencies": {
-    "nodemon": "^3.1.14"
+    "nodemon": "^3.1.14",
+    "prisma": "^6.19.3"
+  },
+  "allowScripts": {
+    "@prisma/client@6.19.3": true,
+    "@prisma/engines@6.19.3": true,
+    "prisma@6.19.3": true
   }
 }
