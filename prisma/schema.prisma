@@ -1,0 +1,228 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// -----------------------------------------------------------
+// Enums — the database refuses any value not listed here
+// -----------------------------------------------------------
+
+enum StudentStatus {
+  SEEKING
+  PLACED
+  INACTIVE
+}
+
+enum JobType {
+  INTERNSHIP
+  FULL_TIME
+}
+
+enum ApplicationStatus {
+  SUBMITTED
+  UNDER_REVIEW
+  SHORTLISTED
+  REJECTED
+  OFFERED
+  WITHDRAWN
+}
+
+enum InterviewOutcome {
+  PENDING
+  PASSED
+  FAILED
+}
+
+// -----------------------------------------------------------
+// Companies
+// -----------------------------------------------------------
+
+model Company {
+  id            String    @id @default(cuid())
+  name          String    @db.VarChar(200)
+  industry      String    @db.VarChar(120)
+  city          String    @db.VarChar(120)
+  employeeCount Int?      @map("employee_count")
+  verified      Boolean   @default(false)
+  websiteUrl    String?   @map("website_url") @db.VarChar(300)
+
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt     DateTime  @updatedAt      @map("updated_at") @db.Timestamptz(3)
+  deletedAt     DateTime?                 @map("deleted_at") @db.Timestamptz(3)
+
+  jobs          Job[]
+
+  @@unique([name, city], name: "uq_company_name_city")
+  @@index([industry])
+  @@index([verified])
+  @@map("companies")
+}
+
+// -----------------------------------------------------------
+// Jobs
+// -----------------------------------------------------------
+
+model Job {
+  id            String    @id @default(cuid())
+  companyId     String    @map("company_id")
+  title         String    @db.VarChar(200)
+  description   String?   @db.Text
+  city          String    @db.VarChar(120)
+  type          JobType
+  stipendPaise  Int?      @map("stipend_paise")
+  openings      Int       @default(1)
+  deadline      DateTime  @db.Date
+  isOpen        Boolean   @default(true) @map("is_open")
+
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt     DateTime  @updatedAt      @map("updated_at") @db.Timestamptz(3)
+  deletedAt     DateTime?                 @map("deleted_at") @db.Timestamptz(3)
+
+  company       Company        @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  applications  Application[]
+  jobSkills     JobSkill[]
+
+  @@index([companyId])
+  @@index([type, city])
+  @@index([deadline])
+  @@index([createdAt(sort: Desc)])
+  @@map("jobs")
+}
+
+// -----------------------------------------------------------
+// Students
+// -----------------------------------------------------------
+
+model Student {
+  id             String        @id @default(cuid())
+  name           String        @db.VarChar(150)
+  email          String        @unique @db.VarChar(255)
+  phone          String?       @db.VarChar(20)
+  branch         String        @db.VarChar(120)
+  graduationYear Int           @map("graduation_year")
+  cgpa           Decimal?      @db.Decimal(3, 2)
+  status         StudentStatus @default(SEEKING)
+
+  createdAt      DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime      @updatedAt      @map("updated_at") @db.Timestamptz(3)
+  deletedAt      DateTime?                     @map("deleted_at") @db.Timestamptz(3)
+
+  applications   Application[]
+  studentSkills  StudentSkill[]
+
+  @@index([status, graduationYear])
+  @@index([branch])
+  @@map("students")
+}
+
+// -----------------------------------------------------------
+// Skills — normalised out of both students and jobs
+// -----------------------------------------------------------
+
+model Skill {
+  id            String         @id @default(cuid())
+  name          String         @unique @db.VarChar(80)
+  category      String?        @db.VarChar(80)
+
+  studentSkills StudentSkill[]
+  jobSkills     JobSkill[]
+
+  @@map("skills")
+}
+
+model StudentSkill {
+  studentId String @map("student_id")
+  skillId   String @map("skill_id")
+  level     Int    @default(1)
+
+  student   Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  skill     Skill   @relation(fields: [skillId],   references: [id], onDelete: Cascade)
+
+  @@id([studentId, skillId])
+  @@index([skillId])
+  @@map("student_skills")
+}
+
+model JobSkill {
+  jobId    String  @map("job_id")
+  skillId  String  @map("skill_id")
+  required Boolean @default(true)
+
+  job      Job   @relation(fields: [jobId],   references: [id], onDelete: Cascade)
+  skill    Skill @relation(fields: [skillId], references: [id], onDelete: Cascade)
+
+  @@id([jobId, skillId])
+  @@index([skillId])
+  @@map("job_skills")
+}
+
+// -----------------------------------------------------------
+// Applications
+// -----------------------------------------------------------
+
+model Application {
+  id             String            @id @default(cuid())
+  studentId      String            @map("student_id")
+  jobId          String            @map("job_id")
+  status         ApplicationStatus @default(SUBMITTED)
+  coverNote      String?           @map("cover_note") @db.Text
+  idempotencyKey String?           @unique @map("idempotency_key") @db.VarChar(100)
+
+  appliedAt      DateTime          @default(now()) @map("applied_at") @db.Timestamptz(3)
+  updatedAt      DateTime          @updatedAt      @map("updated_at") @db.Timestamptz(3)
+  withdrawnAt    DateTime?                         @map("withdrawn_at") @db.Timestamptz(3)
+
+  student        Student            @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  job            Job                @relation(fields: [jobId],     references: [id], onDelete: Restrict)
+  events         ApplicationEvent[]
+  interviews     Interview[]
+
+  @@unique([studentId, jobId], name: "uq_application_student_job")
+  @@index([jobId, status])
+  @@index([studentId, status])
+  @@index([appliedAt(sort: Desc)])
+  @@map("applications")
+}
+
+// -----------------------------------------------------------
+// Application events — append-only audit trail
+// -----------------------------------------------------------
+
+model ApplicationEvent {
+  id            String             @id @default(cuid())
+  applicationId String             @map("application_id")
+  fromStatus    ApplicationStatus? @map("from_status")
+  toStatus      ApplicationStatus  @map("to_status")
+  note          String?            @db.Text
+  createdAt     DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  application   Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  @@index([applicationId, createdAt])
+  @@map("application_events")
+}
+
+// -----------------------------------------------------------
+// Interviews
+// -----------------------------------------------------------
+
+model Interview {
+  id            String           @id @default(cuid())
+  applicationId String           @map("application_id")
+  round         Int
+  scheduledAt   DateTime         @map("scheduled_at") @db.Timestamptz(3)
+  outcome       InterviewOutcome @default(PENDING)
+
+  createdAt     DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt     DateTime         @updatedAt      @map("updated_at") @db.Timestamptz(3)
+
+  application   Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  @@unique([applicationId, round], name: "uq_interview_application_round")
+  @@index([applicationId])
+  @@map("interviews")
+}

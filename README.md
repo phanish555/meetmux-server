@@ -1,11 +1,12 @@
-# PlaceMux API — Mock Server
+# PlaceMux API
 
-Node.js/Express backend for the PlaceMux placement platform. Task 3 organises the code into feature modules with strict layer boundaries, standardises pagination/filtering/sorting behind a shared query parser, and ships architecture docs (ERD, invariants, ADRs).
+Node.js/Express backend for the PlaceMux placement platform. Postgres-backed via Prisma, with a feature-module architecture, strict layer boundaries, a shared query parser, and full architecture + data-model docs.
 
 ## Requirements
 
 - Node.js 18 or higher
 - npm 9 or higher
+- PostgreSQL 14+ (native or via `docker compose up -d`)
 
 ## Setup
 
@@ -13,50 +14,69 @@ Node.js/Express backend for the PlaceMux placement platform. Task 3 organises th
 git clone <your-repo-url>
 cd placemux-server
 npm install
-cp .env.example .env
+cp .env.example .env         # edit DATABASE_URL for your local Postgres
+# Option A — Docker:
+docker compose up -d
+# Option B — native Postgres:  createdb placemux
+npm run db:migrate           # applies migrations
+npm run db:seed              # seeds skills, companies, jobs, students, applications, interviews
+npm run dev
 ```
 
 ## Environment variables
 
-| Variable      | Description                          | Default       |
-| ------------- | ------------------------------------ | ------------- |
-| `PORT`        | Port the server listens on           | 3000          |
-| `NODE_ENV`    | `development` or `production`        | development   |
-| `APP_NAME`    | Display name in responses            | PlaceMux API  |
-| `DATA_SOURCE` | `mock` today, `postgres` (etc) later | mock          |
+| Variable       | Description                                    | Default      |
+| -------------- | ---------------------------------------------- | ------------ |
+| `PORT`         | Port the server listens on                     | 3000         |
+| `NODE_ENV`     | `development` or `production`                  | development  |
+| `APP_NAME`     | Display name in responses                      | PlaceMux API |
+| `DATA_SOURCE`  | `postgres` (default) or `mock` (in-memory)     | postgres     |
+| `DATABASE_URL` | Postgres connection string; required if `DATA_SOURCE=postgres` | — |
 
 ## Running
 
 ```bash
-npm run dev            # development, auto-restart
-npm start              # production
-npm run demo:service   # runs the service layer with no HTTP server (proof of decoupling)
-npm run check:layers   # fails if a service/repository imports req./res.
+npm run dev              # development, auto-restart
+npm start                # production
+npm run demo:service     # runs the service layer with no HTTP server
+npm run check:layers     # grep-fails if a service/repo touches req./res.
+npm run db:migrate       # create + apply pending migrations (dev)
+npm run db:deploy        # apply pending migrations only (prod)
+npm run db:seed          # idempotent seed
+npm run db:reset         # DEV ONLY — wipes + re-seeds
+npm run db:studio        # opens Prisma Studio (browser)
+npm run db:constraints   # runs 11 bad writes; each should be rejected by the DB
 ```
 
 - Interactive docs (Swagger UI): **http://localhost:3000/api/docs**
 - Base API URL: **http://localhost:3000/api/v1**
 
-## Architecture
+## Architecture & data model
 
-See **[`src/docs/ARCHITECTURE.md`](src/docs/ARCHITECTURE.md)** for the full picture — ERD, relationships, invariants (INV-1…INV-8), layer contract, route conventions (R1…R10), and directory layout.
+- **[`src/docs/ARCHITECTURE.md`](src/docs/ARCHITECTURE.md)** — ERD, invariants INV-1..INV-8, layer contract, route conventions R1..R10
+- **[`docs/DATA-MODEL.md`](docs/DATA-MODEL.md)** — tables, FK cascade choices, all 11 constraints with the bad-data they block, index plan, normalisation walkthrough
 
 Key ADRs:
 - [ADR-001](src/docs/adr/0001-layered-architecture.md) — feature-module organisation
 - [ADR-002](src/docs/adr/0002-offset-pagination.md) — offset over cursor for v1
 - [ADR-003](src/docs/adr/0003-strict-query-parsing.md) — reject unknown filters
 - [ADR-004](src/docs/adr/0004-flat-canonical-paths.md) — flat writes, one-level nested reads
+- [ADR-0004 (data)](docs/adr/0004-cuid-primary-keys.md) — cuid PKs
+- [ADR-0005](docs/adr/0005-soft-deletes.md) — soft deletes
+- [ADR-0006](docs/adr/0006-money-as-integer-paise.md) — money as integer paise
+- [ADR-0007](docs/adr/0007-fk-restrict-by-default.md) — FK RESTRICT by default
+- [ADR-0008](docs/adr/0008-application-events-table.md) — append-only application_events
 
 ### The layer contract
 
 ```
-route → controller → service → repository → data source
+route → controller → service → repository → data source (mock | Postgres via Prisma)
 ```
 
 - Route files contain **no logic** — just URL → handler mapping
 - Controllers **never** contain business rules — parse → call service → format
 - Services **never** touch `req`/`res` — enforced by `npm run check:layers`
-- Repositories only do data access; every method is `async`, ready for a real DB
+- `src/modules/<name>/<name>.repository.js` is a one-line dispatcher between `<name>.mock.repository.js` and `<name>.db.repository.js` based on `DATA_SOURCE`. Nothing above the repository line changed between Tasks 2 and 4.
 
 ## API Contract
 
@@ -147,14 +167,23 @@ Illegal moves return **409** with error code `INVALID_STATE_TRANSITION`.
 
 `POST /applications/:id/withdrawal` is a sub-resource action (rule R7) that transitions to `withdrawn` and stamps `withdrawnAt`.
 
-## Data-source swap path
+## Data-source swap (Task 4 payoff)
 
-Data access lives in `src/modules/<name>/<name>.repository.js`. Every method is `async`. To move to a real database:
+Two implementations coexist per module:
 
-1. Replace `<module>.repository.js` with a DB-backed implementation using the same method names.
-2. Set `DATA_SOURCE=postgres` in `.env`.
+- `<name>.mock.repository.js` — in-memory arrays (default in Task 2)
+- `<name>.db.repository.js` — Prisma + Postgres (default now)
 
-No controller, route, validator, or response shape changes. The contract holds.
+`<name>.repository.js` is a one-line dispatcher that picks one based on `DATA_SOURCE`. Flip the env var, restart, and the entire API keeps working with the identical wire contract. Nothing in the controller, service, validator, DTO, route, or OpenAPI spec changed to go from mock to Postgres.
+
+## Database
+
+- Schema in [`prisma/schema.prisma`](prisma/schema.prisma) — 10 tables, 4 enums, 10 CHECK constraints, 2 composite UNIQUEs, 4 partial/GIN indexes.
+- Migrations in [`prisma/migrations/`](prisma/migrations/) — versioned SQL, immutable once applied.
+- Seed in [`prisma/seed.js`](prisma/seed.js) — idempotent (upserts throughout).
+- `npm run db:constraints` runs 11 intentionally-bad writes directly through Prisma; every one must be rejected by the database (bypassing the API entirely).
+- `/api/v1/ready` genuinely probes the DB (`SELECT 1`) and returns 503 if it can't reach it.
+- Prisma errors are mapped to the API's error catalogue in [`src/shared/middleware/errorHandler.js`](src/shared/middleware/errorHandler.js): `P2002` → 409, `P2025` → 404, `P2003` → 400.
 
 ## Postman
 
