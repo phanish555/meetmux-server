@@ -7,7 +7,12 @@ const config = {
   nodeEnv: process.env.NODE_ENV || 'development',
   appName: process.env.APP_NAME || 'PlaceMux API',
   dataSource: process.env.DATA_SOURCE || 'mock',
+  databaseUrl: process.env.DATABASE_URL || '',
 };
+
+if (config.dataSource === 'postgres' && !config.databaseUrl) {
+  throw new Error('DATABASE_URL is required when DATA_SOURCE=postgres');
+}
 
 const required = ['port'];
 for (const key of required) {
