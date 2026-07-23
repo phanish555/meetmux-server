@@ -32,20 +32,27 @@ npm run dev
 | `APP_NAME`     | Display name in responses                      | PlaceMux API |
 | `DATA_SOURCE`  | `postgres` (default) or `mock` (in-memory)     | postgres     |
 | `DATABASE_URL` | Postgres connection string; required if `DATA_SOURCE=postgres` | — |
+| `DB_POOL_SIZE` | Max connections in the pool                    | 10           |
+| `DB_POOL_TIMEOUT` | Seconds to wait for a free connection       | 20           |
+| `DB_CONNECT_TIMEOUT` | Seconds to wait for the initial connect  | 10           |
+| `DB_SLOW_QUERY_MS` | Log a warning above this many ms           | 100          |
 
 ## Running
 
 ```bash
 npm run dev              # development, auto-restart
 npm start                # production
-npm run demo:service     # runs the service layer with no HTTP server
-npm run check:layers     # grep-fails if a service/repo touches req./res.
-npm run db:migrate       # create + apply pending migrations (dev)
-npm run db:deploy        # apply pending migrations only (prod)
-npm run db:seed          # idempotent seed
-npm run db:reset         # DEV ONLY — wipes + re-seeds
-npm run db:studio        # opens Prisma Studio (browser)
-npm run db:constraints   # runs 11 bad writes; each should be rejected by the DB
+npm run demo:service          # service layer runs with no HTTP server
+npm run check:layers          # grep-fails if a service/repo touches req./res.
+npm run check:prisma-boundary # grep-fails if any non-repo file imports prisma
+npm test                      # jest suite against placemux_test
+npm run db:migrate            # create + apply pending migrations (dev)
+npm run db:deploy             # apply pending migrations only (prod)
+npm run db:seed               # idempotent seed
+npm run db:reset              # DEV ONLY — wipes + re-seeds
+npm run db:studio             # opens Prisma Studio (browser)
+npm run db:constraints        # runs 11 bad writes; each rejected by the DB
+npm run db:injection          # runs 6 SQL-injection payloads; each inert
 ```
 
 - Interactive docs (Swagger UI): **http://localhost:3000/api/docs**
@@ -55,6 +62,7 @@ npm run db:constraints   # runs 11 bad writes; each should be rejected by the DB
 
 - **[`src/docs/ARCHITECTURE.md`](src/docs/ARCHITECTURE.md)** — ERD, invariants INV-1..INV-8, layer contract, route conventions R1..R10
 - **[`docs/DATA-MODEL.md`](docs/DATA-MODEL.md)** — tables, FK cascade choices, all 11 constraints with the bad-data they block, index plan, normalisation walkthrough
+- **[`docs/PERSISTENCE.md`](docs/PERSISTENCE.md)** — repository boundary, transaction rules, injection safety, connection pooling, error translation, test coverage matrix
 
 Key ADRs:
 - [ADR-001](src/docs/adr/0001-layered-architecture.md) — feature-module organisation
@@ -66,6 +74,10 @@ Key ADRs:
 - [ADR-0006](docs/adr/0006-money-as-integer-paise.md) — money as integer paise
 - [ADR-0007](docs/adr/0007-fk-restrict-by-default.md) — FK RESTRICT by default
 - [ADR-0008](docs/adr/0008-application-events-table.md) — append-only application_events
+- [ADR-0009](docs/adr/0009-repository-boundary.md) — only repositories touch Prisma
+- [ADR-0010](docs/adr/0010-transaction-client-injection.md) — optional `client` param on every method
+- [ADR-0011](docs/adr/0011-pool-sizing.md) — connection pool sizing
+- [ADR-0012](docs/adr/0012-optimistic-vs-pessimistic-locking.md) — atomic ops + constraints over locks
 
 ### The layer contract
 

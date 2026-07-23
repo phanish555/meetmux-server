@@ -17,28 +17,28 @@ function toDomain(c) {
 }
 
 module.exports = {
-  findAll: async () => {
-    const rows = await prisma.company.findMany({
+  findAll: async (client = prisma) => {
+    const rows = await client.company.findMany({
       where: NOT_DELETED,
       orderBy: { createdAt: 'desc' },
     });
     return rows.map(toDomain);
   },
 
-  findById: async (id) => {
-    const row = await prisma.company.findFirst({ where: { id, ...NOT_DELETED } });
+  findById: async (id, client = prisma) => {
+    const row = await client.company.findFirst({ where: { id, ...NOT_DELETED } });
     return toDomain(row);
   },
 
-  findByName: async (name) => {
-    const row = await prisma.company.findFirst({
+  findByName: async (name, client = prisma) => {
+    const row = await client.company.findFirst({
       where: { name: { equals: name, mode: 'insensitive' }, ...NOT_DELETED },
     });
     return toDomain(row);
   },
 
-  create: async (company) => {
-    const row = await prisma.company.create({
+  create: async (company, client = prisma) => {
+    const row = await client.company.create({
       data: {
         name: company.name,
         industry: company.industry,
@@ -50,14 +50,22 @@ module.exports = {
     return toDomain(row);
   },
 
-  update: async (id, patch) => {
+  update: async (id, patch, client = prisma) => {
     const data = {};
     if (patch.name !== undefined) data.name = patch.name;
     if (patch.industry !== undefined) data.industry = patch.industry;
     if (patch.location !== undefined) data.city = patch.location;
     if (patch.employeeCount !== undefined) data.employeeCount = patch.employeeCount;
     if (patch.verified !== undefined) data.verified = patch.verified;
-    const row = await prisma.company.update({ where: { id }, data });
+    const row = await client.company.update({ where: { id }, data });
+    return toDomain(row);
+  },
+
+  softDelete: async (id, client = prisma) => {
+    const row = await client.company.update({
+      where: { id },
+      data: { deletedAt: new Date() },
+    });
     return toDomain(row);
   },
 

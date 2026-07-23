@@ -117,12 +117,55 @@ function buildListMeta(q, total) {
   return buildMeta({ page: q.page, limit: q.limit, total, sort: q.sort, filters: q.filters });
 }
 
+// Multi-table transactional operation used by the accept-offer flow.
+// Everything commits or nothing does: accept this app, withdraw the student's
+// other live apps, mark the student PLACED, decrement the job's openings.
+// Kept as a service method (not a route yet) — demonstrable via the test suite.
+async function acceptOffer(applicationId) {
+  const config = require('../../config/env');
+  if (config.dataSource !== 'postgres') {
+    throw ApiError.badRequest('acceptOffer requires DATA_SOURCE=postgres');
+  }
+  const { runInTransaction } = require('../../shared/transactions');
+
+  return runInTransaction(async (tx) => {
+    const current = await repo.findById(applicationId, tx);
+    if (!current) throw ApiError.notFound(`Application ${applicationId} was not found`);
+    if (current.status !== 'offered') {
+      throw ApiError.invalidTransition(
+        `Cannot accept an application in status ${current.status}`
+      );
+    }
+
+    // 2. Withdraw every other live application from this student
+    const others = (await repo.findLiveByStudent(current.studentId, tx))
+      .filter((a) => a.id !== applicationId);
+
+    for (const other of others) {
+      await repo.update(other.id, {
+        status: 'withdrawn',
+        withdrawnAt: new Date().toISOString(),
+      }, tx);
+    }
+
+    // 3. Mark the student PLACED
+    await studentRepo.update(current.studentId, { status: 'placed' }, tx);
+
+    // 4. Atomically decrement remaining openings on the accepted job.
+    //    The DB CHECK (openings > 0) makes over-allocation impossible.
+    await jobRepo.decrementOpenings(current.jobId, tx);
+
+    return { accepted: applicationId, withdrawnCount: others.length };
+  });
+}
+
 module.exports = {
   listApplications,
   getApplication,
   createApplication,
   updateStatus,
   withdrawApplication,
+  acceptOffer,
   buildListMeta,
   ALLOWED_TRANSITIONS,
 };
