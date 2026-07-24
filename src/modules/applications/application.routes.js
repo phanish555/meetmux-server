@@ -1,23 +1,27 @@
 const express = require('express');
 const controller = require('./application.controller');
 const { requireRole } = require('../../shared/middleware/authorize');
+const validate = require('../../shared/middleware/validate');
+const schema = require('./application.schema');
 
 const router = express.Router();
 
-router.get('/applications', controller.list);
-router.get('/applications/:id', controller.getById);
+router.get('/applications', validate(schema.list), controller.list);
+router.get('/applications/:id', validate(schema.getOne), controller.getById);
 
-// A student applies on their own behalf; ADMIN can create too (for testing)
-router.post('/applications', requireRole('STUDENT', 'ADMIN'), controller.create);
+router.post('/applications',
+  requireRole('STUDENT', 'ADMIN'),
+  validate(schema.create), controller.create);
 
-// Only recruiters/officers/admin may change status; students may only withdraw
 router.patch('/applications/:id/status',
   requireRole('RECRUITER', 'PLACEMENT_OFFICER', 'ADMIN'),
-  controller.patchStatus);
+  validate(schema.patchStatus), controller.patchStatus);
+
 router.post('/applications/:id/withdrawal',
   requireRole('STUDENT', 'ADMIN'),
-  controller.withdraw);
+  validate(schema.withdraw), controller.withdraw);
 
-router.get('/applications/:id/interviews', controller.listInterviewsForApplication);
+router.get('/applications/:id/interviews',
+  validate(schema.listInterviews), controller.listInterviewsForApplication);
 
 module.exports = router;
