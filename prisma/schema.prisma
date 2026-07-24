@@ -37,6 +37,60 @@ enum InterviewOutcome {
   FAILED
 }
 
+enum UserRole {
+  STUDENT
+  RECRUITER
+  PLACEMENT_OFFICER
+  ADMIN
+}
+
+// -----------------------------------------------------------
+// Users & auth (Task 6)
+// -----------------------------------------------------------
+
+model User {
+  id                String    @id @default(cuid())
+  email             String    @unique @db.VarChar(255)
+  passwordHash      String    @map("password_hash") @db.VarChar(255)
+  role              UserRole  @default(STUDENT)
+
+  emailVerified     Boolean   @default(false) @map("email_verified")
+  failedAttempts    Int       @default(0) @map("failed_attempts")
+  lockedUntil       DateTime? @map("locked_until") @db.Timestamptz(3)
+  lastLoginAt       DateTime? @map("last_login_at") @db.Timestamptz(3)
+  passwordChangedAt DateTime? @map("password_changed_at") @db.Timestamptz(3)
+
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt         DateTime  @updatedAt      @map("updated_at") @db.Timestamptz(3)
+  deletedAt         DateTime? @map("deleted_at") @db.Timestamptz(3)
+
+  student           Student?
+  refreshTokens     RefreshToken[]
+
+  @@index([email])
+  @@map("users")
+}
+
+model RefreshToken {
+  id          String    @id @default(cuid())
+  userId      String    @map("user_id")
+  tokenHash   String    @unique @map("token_hash") @db.VarChar(255)
+  family      String    @db.VarChar(64)
+  expiresAt   DateTime  @map("expires_at") @db.Timestamptz(3)
+  revokedAt   DateTime? @map("revoked_at") @db.Timestamptz(3)
+  replacedBy  String?   @map("replaced_by")
+  userAgent   String?   @map("user_agent") @db.VarChar(300)
+  ipAddress   String?   @map("ip_address") @db.VarChar(64)
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  user        User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, revokedAt])
+  @@index([family])
+  @@index([expiresAt])
+  @@map("refresh_tokens")
+}
+
 // -----------------------------------------------------------
 // Companies
 // -----------------------------------------------------------
@@ -99,6 +153,7 @@ model Job {
 
 model Student {
   id             String        @id @default(cuid())
+  userId         String?       @unique @map("user_id")
   name           String        @db.VarChar(150)
   email          String        @unique @db.VarChar(255)
   phone          String?       @db.VarChar(20)
@@ -111,6 +166,7 @@ model Student {
   updatedAt      DateTime      @updatedAt      @map("updated_at") @db.Timestamptz(3)
   deletedAt      DateTime?                     @map("deleted_at") @db.Timestamptz(3)
 
+  user           User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
   applications   Application[]
   studentSkills  StudentSkill[]
 

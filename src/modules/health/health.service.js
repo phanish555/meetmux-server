@@ -1,4 +1,5 @@
 const config = require('../../config/env');
+const healthRepo = require('./health.repository');
 
 function getHealthStatus() {
   return {
@@ -15,17 +16,15 @@ async function getReadyStatus() {
   if (config.dataSource !== 'postgres') {
     return { ready: true, dataSource: config.dataSource };
   }
-  const prisma = require('../../shared/prisma');
-  try {
-    await prisma.$queryRaw`SELECT 1`;
-    return { ready: true, dataSource: 'postgres', database: 'up' };
-  } catch (err) {
-    const notReady = new Error('Database unreachable');
-    notReady.status = 503;
-    notReady.code = 'SERVICE_UNAVAILABLE';
-    notReady.isOperational = true;
-    throw notReady;
+  const alive = await healthRepo.pingDatabase();
+  if (!alive) {
+    const err = new Error('Database unreachable');
+    err.status = 503;
+    err.code = 'SERVICE_UNAVAILABLE';
+    err.isOperational = true;
+    throw err;
   }
+  return { ready: true, dataSource: 'postgres', database: 'up' };
 }
 
 module.exports = { getHealthStatus, getReadyStatus };

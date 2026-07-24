@@ -26,6 +26,14 @@ class ApiError extends Error {
   static invalidTransition(message) {
     return new ApiError(409, 'INVALID_STATE_TRANSITION', message);
   }
+
+  static unauthorized(message = 'Authentication required') {
+    return new ApiError(401, 'UNAUTHORIZED', message);
+  }
+
+  static forbidden(message = 'Not permitted') {
+    return new ApiError(403, 'FORBIDDEN', message);
+  }
 }
 
 module.exports = ApiError;

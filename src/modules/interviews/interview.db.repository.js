@@ -17,25 +17,25 @@ function toDomain(i) {
 }
 
 module.exports = {
-  findAll: async () => {
-    const rows = await prisma.interview.findMany({ orderBy: { scheduledAt: 'desc' } });
+  findAll: async (client = prisma) => {
+    const rows = await client.interview.findMany({ orderBy: { scheduledAt: 'desc' } });
     return rows.map(toDomain);
   },
 
-  findById: async (id) => {
-    const row = await prisma.interview.findUnique({ where: { id } });
+  findById: async (id, client = prisma) => {
+    const row = await client.interview.findUnique({ where: { id } });
     return toDomain(row);
   },
 
-  findByApplicationAndRound: async (applicationId, round) => {
-    const row = await prisma.interview.findUnique({
+  findByApplicationAndRound: async (applicationId, round, client = prisma) => {
+    const row = await client.interview.findUnique({
       where: { uq_interview_application_round: { applicationId, round } },
     });
     return toDomain(row);
   },
 
-  create: async (interview) => {
-    const row = await prisma.interview.create({
+  create: async (interview, client = prisma) => {
+    const row = await client.interview.create({
       data: {
         applicationId: interview.applicationId,
         round: interview.round,

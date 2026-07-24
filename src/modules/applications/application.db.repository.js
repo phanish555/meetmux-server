@@ -33,32 +33,43 @@ function toDomain(a) {
 }
 
 module.exports = {
-  findAll: async () => {
-    const rows = await prisma.application.findMany({ orderBy: { appliedAt: 'desc' } });
+  findAll: async (client = prisma) => {
+    const rows = await client.application.findMany({ orderBy: { appliedAt: 'desc' } });
     return rows.map(toDomain);
   },
 
-  findById: async (id) => {
-    const row = await prisma.application.findUnique({ where: { id } });
+  findById: async (id, client = prisma) => {
+    const row = await client.application.findUnique({ where: { id } });
     return toDomain(row);
   },
 
-  findByStudentAndJob: async (studentId, jobId) => {
-    const row = await prisma.application.findUnique({
+  findByStudentAndJob: async (studentId, jobId, client = prisma) => {
+    const row = await client.application.findUnique({
       where: { uq_application_student_job: { studentId, jobId } },
     });
     return toDomain(row);
   },
 
-  findByIdempotencyKey: async (key) => {
+  findByIdempotencyKey: async (key, client = prisma) => {
     if (!key) return null;
-    const row = await prisma.application.findUnique({ where: { idempotencyKey: key } });
+    const row = await client.application.findUnique({ where: { idempotencyKey: key } });
     return toDomain(row);
   },
 
-  create: async (application) => {
-    // Wrap create + first audit event in a transaction — all or nothing
-    const row = await prisma.$transaction(async (tx) => {
+  findLiveByStudent: async (studentId, client = prisma) => {
+    const rows = await client.application.findMany({
+      where: {
+        studentId,
+        status: { in: ['SUBMITTED', 'UNDER_REVIEW', 'SHORTLISTED', 'OFFERED'] },
+      },
+    });
+    return rows.map(toDomain);
+  },
+
+  create: async (application, client = null) => {
+    // If a tx client is passed in, use it and write the event in the same tx.
+    // Otherwise start a self-contained transaction here.
+    const doWork = async (tx) => {
       const created = await tx.application.create({
         data: {
           studentId: application.studentId,
@@ -75,19 +86,19 @@ module.exports = {
         },
       });
       return created;
-    });
+    };
+    const row = client ? await doWork(client) : await prisma.$transaction(doWork);
     return toDomain(row);
   },
 
-  update: async (id, patch) => {
+  update: async (id, patch, client = null) => {
     const data = {};
     if (patch.status !== undefined) data.status = STATUS_TO_DB[patch.status] || patch.status;
     if (patch.withdrawnAt !== undefined) {
       data.withdrawnAt = patch.withdrawnAt ? new Date(patch.withdrawnAt) : null;
     }
 
-    // If status is changing, atomically write the audit event
-    const row = await prisma.$transaction(async (tx) => {
+    const doWork = async (tx) => {
       const before = await tx.application.findUnique({ where: { id } });
       const updated = await tx.application.update({ where: { id }, data });
       if (data.status && before && before.status !== updated.status) {
@@ -100,7 +111,8 @@ module.exports = {
         });
       }
       return updated;
-    });
+    };
+    const row = client ? await doWork(client) : await prisma.$transaction(doWork);
     return toDomain(row);
   },
 
