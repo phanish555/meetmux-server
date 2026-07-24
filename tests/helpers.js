@@ -9,7 +9,9 @@ async function truncateAll() {
   await prisma.jobSkill.deleteMany();
   await prisma.job.deleteMany();
   await prisma.company.deleteMany();
+  await prisma.refreshToken.deleteMany();
   await prisma.student.deleteMany();
+  await prisma.user.deleteMany();
   await prisma.skill.deleteMany();
 }
 

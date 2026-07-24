@@ -69,8 +69,17 @@ module.exports = {
         graduationYear: student.graduationYear,
         cgpa: student.cgpa,
         status: toEnum(student.status),
+        ...(student.userId ? { userId: student.userId } : {}),
         studentSkills,
       },
+      include: INCLUDE,
+    });
+    return toDomain(row);
+  },
+
+  findByUserId: async (userId, client = prisma) => {
+    const row = await client.student.findFirst({
+      where: { userId, deletedAt: null },
       include: INCLUDE,
     });
     return toDomain(row);
