@@ -36,6 +36,19 @@ npm run dev
 | `DB_POOL_TIMEOUT` | Seconds to wait for a free connection       | 20           |
 | `DB_CONNECT_TIMEOUT` | Seconds to wait for the initial connect  | 10           |
 | `DB_SLOW_QUERY_MS` | Log a warning above this many ms           | 100          |
+| `JWT_ACCESS_SECRET` | Signing secret for access tokens (≥32 chars) | required   |
+| `JWT_REFRESH_SECRET` | Signing secret for refresh tokens (≥32 chars; must differ from access) | required |
+| `JWT_ACCESS_TTL` | Access token lifetime                          | 15m          |
+| `JWT_REFRESH_TTL` | Refresh token lifetime                        | 7d           |
+| `PASSWORD_PEPPER` | Application-level pepper for bcrypt (≥32 chars) | required   |
+| `JWT_ISSUER` / `JWT_AUDIENCE` | JWT claim values                    | placemux-api / placemux-web |
+| `CORS_ORIGINS` | Comma-separated allow-list                     | localhost:5173,localhost:3000 |
+
+Generate secrets:
+
+```bash
+node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"
+```
 
 ## Running
 
@@ -63,6 +76,7 @@ npm run db:injection          # runs 6 SQL-injection payloads; each inert
 - **[`src/docs/ARCHITECTURE.md`](src/docs/ARCHITECTURE.md)** — ERD, invariants INV-1..INV-8, layer contract, route conventions R1..R10
 - **[`docs/DATA-MODEL.md`](docs/DATA-MODEL.md)** — tables, FK cascade choices, all 11 constraints with the bad-data they block, index plan, normalisation walkthrough
 - **[`docs/PERSISTENCE.md`](docs/PERSISTENCE.md)** — repository boundary, transaction rules, injection safety, connection pooling, error translation, test coverage matrix
+- **[`docs/SECURITY.md`](docs/SECURITY.md)** — threat model, password storage, JWT + refresh-rotation, role/ownership authz, defence layers, route permission matrix
 
 Key ADRs:
 - [ADR-001](src/docs/adr/0001-layered-architecture.md) — feature-module organisation
@@ -78,6 +92,11 @@ Key ADRs:
 - [ADR-0010](docs/adr/0010-transaction-client-injection.md) — optional `client` param on every method
 - [ADR-0011](docs/adr/0011-pool-sizing.md) — connection pool sizing
 - [ADR-0012](docs/adr/0012-optimistic-vs-pessimistic-locking.md) — atomic ops + constraints over locks
+- [ADR-0013](docs/adr/0013-password-hashing.md) — bcryptjs cost 12 + application pepper
+- [ADR-0014](docs/adr/0014-jwt-access-plus-db-refresh.md) — short JWT + DB refresh
+- [ADR-0015](docs/adr/0015-refresh-token-rotation.md) — refresh rotation + family revocation on reuse
+- [ADR-0016](docs/adr/0016-404-over-403.md) — 404 (not 403) for records you can't see
+- [ADR-0017](docs/adr/0017-user-enumeration-tradeoff.md) — the register-conflict trade-off
 
 ### The layer contract
 
