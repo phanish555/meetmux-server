@@ -77,6 +77,7 @@ npm run db:injection          # runs 6 SQL-injection payloads; each inert
 - **[`docs/DATA-MODEL.md`](docs/DATA-MODEL.md)** — tables, FK cascade choices, all 11 constraints with the bad-data they block, index plan, normalisation walkthrough
 - **[`docs/PERSISTENCE.md`](docs/PERSISTENCE.md)** — repository boundary, transaction rules, injection safety, connection pooling, error translation, test coverage matrix
 - **[`docs/SECURITY.md`](docs/SECURITY.md)** — threat model, password storage, JWT + refresh-rotation, role/ownership authz, defence layers, route permission matrix
+- **[`docs/VALIDATION.md`](docs/VALIDATION.md)** — Zod middleware, primitive vocabulary, sanitisation, endpoint schema matrix, coverage test that fails CI on any unvalidated route
 
 Key ADRs:
 - [ADR-001](src/docs/adr/0001-layered-architecture.md) — feature-module organisation
@@ -97,6 +98,9 @@ Key ADRs:
 - [ADR-0015](docs/adr/0015-refresh-token-rotation.md) — refresh rotation + family revocation on reuse
 - [ADR-0016](docs/adr/0016-404-over-403.md) — 404 (not 403) for records you can't see
 - [ADR-0017](docs/adr/0017-user-enumeration-tradeoff.md) — the register-conflict trade-off
+- [ADR-0018](docs/adr/0018-zod-over-joi.md) — Zod for schema validation
+- [ADR-0019](docs/adr/0019-strict-schemas.md) — `.strict()` everywhere for mass-assignment defence
+- [ADR-0020](docs/adr/0020-sanitise-on-input.md) — sanitise on input, escape on output
 
 ### The layer contract
 

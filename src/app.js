@@ -8,6 +8,7 @@ const path = require('path');
 
 const requestLogger = require('./shared/middleware/requestLogger');
 const queryCounter = require('./shared/middleware/queryCounter');
+const sanitiseBody = require('./shared/middleware/sanitiseBody');
 const { notFound, errorHandler, malformedJson } = require('./shared/middleware/errorHandler');
 const { globalLimiter } = require('./shared/middleware/rateLimit');
 const config = require('./config/env');
@@ -45,6 +46,7 @@ app.use(cors({
 app.use(express.json({ limit: '100kb' }));
 app.use(cookieParser());
 app.use(malformedJson);
+app.use(sanitiseBody);
 app.use(requestLogger);
 if (config.dataSource === 'postgres' && config.nodeEnv === 'development') app.use(queryCounter);
 app.use(globalLimiter);

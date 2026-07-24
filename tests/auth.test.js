@@ -152,8 +152,11 @@ describe('access token validation', () => {
 
 describe('authorization — role & ownership', () => {
   async function registerAs(email, role = 'STUDENT') {
+    // Derive a name from the email that satisfies the personName regex
+    // (letters + spaces only, min 2 chars).
+    const name = 'Test ' + (email.split('@')[0].replace(/[^a-zA-Z]/g, '') || 'User');
     const res = await request(app).post('/api/v1/auth/register').send({
-      ...signup, email, name: email, password: signup.password,
+      ...signup, email, name, password: signup.password,
     });
     if (role !== 'STUDENT') {
       await prisma.user.update({ where: { email }, data: { role } });
