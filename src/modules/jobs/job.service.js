@@ -99,4 +99,43 @@ function buildListMeta(q, total) {
   return buildMeta({ page: q.page, limit: q.limit, total, sort: q.sort, filters: q.filters });
 }
 
-module.exports = { listJobs, getJob, createJob, updateJob, listJobsByCompany, buildListMeta };
+// Task 8: relational feature — jobs a student is a good match for.
+// One bounded query for skills, one for jobs — total 2 regardless of catalogue size.
+async function recommendedForStudent(studentId) {
+  const studentRepo = require('../students/student.repository');
+  const skillRepo = require('../skills/skill.repository');
+  const jobRepo = require('./job.db.repository');
+
+  const student = await studentRepo.findById(studentId);
+  if (!student) throw ApiError.notFound(`Student with id ${studentId} was not found`);
+
+  const skillNames = new Set((student.skills || []).map((s) => s.toLowerCase()));
+  if (skillNames.size === 0) return [];
+
+  const skillIds = (await skillRepo.findIdsByNames([...skillNames])).map((s) => s.id);
+  const jobs = await jobRepo.findWithSkillOverlap(skillIds);
+
+  // Rank by overlap count — cheap in memory, set already bounded by the query
+  return jobs
+    .map((job) => {
+      const jobSkillNames = (job.jobSkills || []).map((js) => js.skill.name.toLowerCase());
+      const overlap = jobSkillNames.filter((n) => skillNames.has(n)).length;
+      return {
+        id: job.id,
+        title: job.title,
+        location: job.city,
+        type: job.type === 'FULL_TIME' ? 'full-time' : 'internship',
+        stipend: job.stipendPaise ? Math.round(job.stipendPaise / 100) : null,
+        openings: job.openings,
+        deadline: job.deadline instanceof Date ? job.deadline.toISOString().slice(0, 10) : job.deadline,
+        company: job.company,
+        requiredSkills: jobSkillNames,
+        matchScore: overlap,
+        matchTotal: jobSkillNames.length,
+        applicantCount: job._count?.applications ?? 0,
+      };
+    })
+    .sort((a, b) => b.matchScore - a.matchScore);
+}
+
+module.exports = { listJobs, getJob, createJob, updateJob, listJobsByCompany, buildListMeta, recommendedForStudent };

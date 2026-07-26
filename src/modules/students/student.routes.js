@@ -23,4 +23,7 @@ router.patch('/students/:id',
 router.get('/students/:id/applications',
   validate(schema.listApplications), controller.listApplicationsForStudent);
 
+router.get('/students/:id/recommended-jobs',
+  validate(schema.recommendedJobs), controller.recommendedJobs);
+
 module.exports = router;

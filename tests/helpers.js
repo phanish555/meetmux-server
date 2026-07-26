@@ -1,7 +1,9 @@
 const prisma = require('../src/shared/prisma');
 
-// Children first — FK constraints enforce the order
+// Children first — FK constraints enforce the order.
+// Placement RESTRICTs on application/student/job, so it goes before them.
 async function truncateAll() {
+  await prisma.placement.deleteMany();
   await prisma.applicationEvent.deleteMany();
   await prisma.interview.deleteMany();
   await prisma.application.deleteMany();
