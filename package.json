@@ -17,7 +17,8 @@
     "db:seed": "node prisma/seed.js",
     "db:reset": "prisma migrate reset --force --skip-seed && npm run db:seed",
     "db:constraints": "node scripts/prove-constraints.js",
-    "db:injection": "node scripts/prove-injection-safe.js"
+    "db:injection": "node scripts/prove-injection-safe.js",
+    "db:relationships": "node scripts/inspect-relationships.js"
   },
   "prisma": {
     "seed": "node prisma/seed.js"
@@ -42,6 +43,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@faker-js/faker": "^10.5.0",
     "dotenv-cli": "^11.0.0",
     "jest": "^30.4.2",
     "nodemon": "^3.1.14",
