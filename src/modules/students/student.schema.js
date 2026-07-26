@@ -56,4 +56,8 @@ const listApplications = {
   }).strict(),
 };
 
-module.exports = { list, getOne, create, update, listApplications };
+const recommendedJobs = {
+  params: z.object({ id: p.studentId }).strict(),
+};
+
+module.exports = { list, getOne, create, update, listApplications, recommendedJobs };

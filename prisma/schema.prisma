@@ -139,6 +139,7 @@ model Job {
   company       Company        @relation(fields: [companyId], references: [id], onDelete: Restrict)
   applications  Application[]
   jobSkills     JobSkill[]
+  placements    Placement[]
 
   @@index([companyId])
   @@index([type, city])
@@ -169,6 +170,7 @@ model Student {
   user           User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
   applications   Application[]
   studentSkills  StudentSkill[]
+  placement      Placement?
 
   @@index([status, graduationYear])
   @@index([branch])
@@ -236,6 +238,7 @@ model Application {
   job            Job                @relation(fields: [jobId],     references: [id], onDelete: Restrict)
   events         ApplicationEvent[]
   interviews     Interview[]
+  placement      Placement?
 
   @@unique([studentId, jobId], name: "uq_application_student_job")
   @@index([jobId, status])
@@ -281,4 +284,33 @@ model Interview {
   @@unique([applicationId, round], name: "uq_interview_application_round")
   @@index([applicationId])
   @@map("interviews")
+}
+
+// -----------------------------------------------------------
+// Placements (Task 8) — a student was placed via an application.
+// New resource. Its own lifecycle, its own history.
+// -----------------------------------------------------------
+
+model Placement {
+  id              String   @id @default(cuid())
+  studentId       String   @unique @map("student_id")     // 1:1 — a student is placed at most once
+  jobId           String   @map("job_id")
+  applicationId   String   @unique @map("application_id") // 1:1 with the offered application
+
+  // Point-in-time snapshot (Task 4's deliberate denormalisation).
+  // Copied on purpose: if the job's package changes next year, this
+  // historical record of what was actually offered must NOT change.
+  offeredCtcPaise BigInt   @map("offered_ctc_paise")
+  titleAtOffer    String   @map("title_at_offer") @db.VarChar(200)
+  placedAt        DateTime @default(now()) @map("placed_at") @db.Timestamptz(3)
+
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime @updatedAt      @map("updated_at") @db.Timestamptz(3)
+
+  student     Student     @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  job         Job         @relation(fields: [jobId], references: [id], onDelete: Restrict)
+  application Application @relation(fields: [applicationId], references: [id], onDelete: Restrict)
+
+  @@index([jobId])
+  @@map("placements")
 }

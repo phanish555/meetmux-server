@@ -1,6 +1,7 @@
 const service = require('./student.service');
 const applicationService = require('../applications/application.service');
 const applicationDto = require('../applications/application.dto');
+const jobService = require('../jobs/job.service');
 const querySchema = require('./student.queryschema');
 const applicationQuerySchema = require('../applications/application.queryschema');
 const dto = require('./student.dto');
@@ -44,4 +45,15 @@ const listApplicationsForStudent = asyncHandler(async (req, res) => {
   });
 });
 
-module.exports = { list, getById, create, update, listApplicationsForStudent };
+const recommendedJobs = asyncHandler(async (req, res) => {
+  // Ownership: a student may only see their own recommendations
+  if (req.user.role === 'STUDENT' && req.user.studentId !== req.params.id) {
+    const ApiError = require('../../shared/errors/ApiError');
+    throw ApiError.notFound(`Student with id ${req.params.id} was not found`);
+  }
+  await service.getStudent(req.params.id);
+  const jobs = await jobService.recommendedForStudent(req.params.id);
+  return success(res, { data: jobs });
+});
+
+module.exports = { list, getById, create, update, listApplicationsForStudent, recommendedJobs };

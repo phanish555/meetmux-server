@@ -60,6 +60,25 @@ module.exports = {
     return rows.map(toDomain);
   },
 
+  // Task 8: many-to-many traversal in a single bounded query.
+  // "Live, open jobs whose required skills overlap with the given set."
+  findWithSkillOverlap: async (skillIds, client = prisma) => {
+    if (!skillIds || skillIds.length === 0) return [];
+    const rows = await client.job.findMany({
+      where: {
+        ...NOT_DELETED,
+        isOpen: true,
+        jobSkills: { some: { skillId: { in: skillIds } } },
+      },
+      include: {
+        ...INCLUDE,
+        company: { select: { id: true, name: true, verified: true, city: true } },
+        _count: { select: { applications: true } },
+      },
+    });
+    return rows;
+  },
+
   create: async (job, client = prisma) => {
     const jobSkills = await connectOrCreateSkills(job.skills, client);
     const row = await client.job.create({
