@@ -1,0 +1,76 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>PlaceMux realtime test</title>
+<style>
+  body { font-family: system-ui, sans-serif; max-width: 720px; margin: 2rem auto; padding: 0 1rem; }
+  input { width: 100%; padding: .5rem; font: inherit; margin: .25rem 0; }
+  button { padding: .5rem 1rem; font: inherit; cursor: pointer; }
+  #status { padding: .5rem; margin: 1rem 0; border-radius: 4px; background: #eee; }
+  #status.on { background: #cfc; }
+  #status.off { background: #fcc; }
+  ul { padding-left: 1rem; list-style: none; }
+  li { padding: .25rem 0; border-bottom: 1px solid #eee; font-family: ui-monospace, monospace; font-size: 13px; }
+  .evt { color: #060; }
+  .err { color: #c00; }
+</style>
+</head>
+<body>
+  <h2>PlaceMux realtime test client</h2>
+  <p>Paste an access token (from <code>POST /api/v1/auth/login</code>) and connect.
+     Then in another tab, POST an application — you'll see the event arrive here live.</p>
+
+  <input id="token" placeholder="paste access token here">
+  <button id="connect">Connect</button>
+  <button id="disconnect">Disconnect</button>
+  <div id="status" class="off">disconnected</div>
+
+  <h3>Events</h3>
+  <ul id="log"></ul>
+
+  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+  <script>
+    const $log = document.getElementById('log');
+    const $status = document.getElementById('status');
+
+    function log(text, cls = 'evt') {
+      const li = document.createElement('li');
+      li.className = cls;
+      li.textContent = `${new Date().toLocaleTimeString()}  ${text}`;
+      $log.prepend(li);
+    }
+    function setStatus(text, cls) {
+      $status.textContent = text;
+      $status.className = cls;
+    }
+
+    let socket = null;
+    document.getElementById('connect').onclick = () => {
+      const token = document.getElementById('token').value.trim();
+      if (!token) return alert('paste a token first');
+      if (socket) socket.close();
+
+      socket = io('http://localhost:3000', {
+        auth: { token },
+        reconnection: true,
+        reconnectionAttempts: Infinity,
+        reconnectionDelay: 1000,
+        reconnectionDelayMax: 5000,
+      });
+
+      socket.on('connect',            ()   => { setStatus('connected: ' + socket.id, 'on'); log('connected'); });
+      socket.on('disconnect',         (r)  => { setStatus('disconnected: ' + r, 'off'); log('disconnected: ' + r); });
+      socket.on('connect_error',      (e)  => { log('connect_error: ' + e.message, 'err'); });
+
+      socket.on('application:new',    (d)  => log('APPLICATION:new  ' + JSON.stringify(d)));
+      socket.on('application:status', (d)  => log('APPLICATION:status  ' + JSON.stringify(d)));
+      socket.on('stats:batch',        (d)  => log('STATS:batch  ' + JSON.stringify(d)));
+
+      window._socket = socket; // pokable from devtools
+    };
+
+    document.getElementById('disconnect').onclick = () => socket && socket.close();
+  </script>
+</body>
+</html>

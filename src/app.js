@@ -1,6 +1,7 @@
 const express = require('express');
 const helmet = require('helmet');
 const cors = require('cors');
+const compression = require('compression');
 const cookieParser = require('cookie-parser');
 const swaggerUi = require('swagger-ui-express');
 const YAML = require('yamljs');
@@ -42,6 +43,9 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization', 'Idempotency-Key'],
   maxAge: 86400,
 }));
+
+// gzip responses over 1KB — small responses aren't worth the CPU
+app.use(compression({ threshold: 1024 }));
 
 app.use(express.json({ limit: '100kb' }));
 app.use(cookieParser());
