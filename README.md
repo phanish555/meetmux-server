@@ -79,6 +79,7 @@ npm run db:injection          # runs 6 SQL-injection payloads; each inert
 - **[`docs/SECURITY.md`](docs/SECURITY.md)** — threat model, password storage, JWT + refresh-rotation, role/ownership authz, defence layers, route permission matrix
 - **[`docs/VALIDATION.md`](docs/VALIDATION.md)** — Zod middleware, primitive vocabulary, sanitisation, endpoint schema matrix, coverage test that fails CI on any unvalidated route
 - **[`docs/RELATIONSHIPS.md`](docs/RELATIONSHIPS.md)** — FK inventory with cascade choices, realistic seed shapes, efficient related queries, N+1 assertion, skill-matching walkthrough
+- **[`docs/PERFORMANCE.md`](docs/PERFORMANCE.md)** — methodology, baseline/results tables, cache-aside with graceful degradation, invalidation plan, and what was deliberately NOT optimised
 
 Key ADRs:
 - [ADR-001](src/docs/adr/0001-layered-architecture.md) — feature-module organisation
@@ -105,6 +106,8 @@ Key ADRs:
 - [ADR-0021](docs/adr/0021-placement-as-resource.md) — Placement as its own resource
 - [ADR-0022](docs/adr/0022-snapshot-fields-on-placement.md) — snapshot fields (deliberate denormalisation)
 - [ADR-0023](docs/adr/0023-faker-seed-pinned.md) — deterministic seed via `faker.seed(42)`
+- [ADR-0024](docs/adr/0024-cache-aside-with-redis.md) — cache-aside via Redis with graceful degradation
+- [ADR-0025](docs/adr/0025-invalidation-strategy.md) — invalidation: event-based + TTL backstop
 
 ### The layer contract
 
