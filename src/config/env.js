@@ -27,6 +27,10 @@ const config = {
     .split(',')
     .map((s) => s.trim())
     .filter(Boolean),
+  redis: {
+    url: process.env.REDIS_URL || '',       // empty → cache and adapter degrade to no-op
+    defaultTtl: Number(process.env.CACHE_DEFAULT_TTL || 60),
+  },
 };
 
 if (config.dataSource === 'postgres' && !config.databaseUrl) {

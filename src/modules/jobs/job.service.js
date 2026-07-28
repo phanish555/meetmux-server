@@ -6,6 +6,9 @@ const querySchema = require('./job.queryschema');
 const {
   applyFilters, applySearch, applySort, applyFields, buildMeta,
 } = require('../../shared/query/listQuery');
+const cache = require('../../shared/cache');
+
+const CACHE_TTL_SECONDS = 60;
 
 const FILTER_HANDLERS = {
   companyId: (j, v) => j.companyId === v,
@@ -16,14 +19,25 @@ const FILTER_HANDLERS = {
 };
 
 async function listJobs(q) {
-  const all = await repo.findAll();
-  let result = applyFilters(all, q.filters, FILTER_HANDLERS);
-  result = applySearch(result, q.search, querySchema.searchable);
-  result = applySort(result, q.sort);
+  // Cache key includes everything that affects the result. Fields is
+  // deliberately excluded — clients requesting subsets share the base cache.
+  const key = `jobs:list:${cache.hashObject({
+    filters: q.filters, sort: q.sort, page: q.page, limit: q.limit, search: q.search,
+  })}`;
 
-  const total = result.length;
-  const items = applyFields(result.slice(q.offset, q.offset + q.limit), q.fields);
-  return { items, total };
+  const { data, cached } = await cache.wrap(key, CACHE_TTL_SECONDS, async () => {
+    const all = await repo.findAll();
+    let result = applyFilters(all, q.filters, FILTER_HANDLERS);
+    result = applySearch(result, q.search, querySchema.searchable);
+    result = applySort(result, q.sort);
+    return { items: result.slice(q.offset, q.offset + q.limit), total: result.length };
+  });
+
+  return {
+    items: applyFields(data.items, q.fields),
+    total: data.total,
+    _cache: cached ? 'hit' : 'miss',
+  };
 }
 
 async function getJob(id, { expand } = {}) {
@@ -55,7 +69,7 @@ async function createJob(body) {
   }
 
   const now = new Date().toISOString();
-  return repo.create({
+  const created = await repo.create({
     id: `job_${Date.now()}`,
     companyId: body.companyId,
     title: body.title.trim(),
@@ -68,6 +82,8 @@ async function createJob(body) {
     createdAt: now,
     updatedAt: now,
   });
+  await invalidateJobCaches();
+  return created;
 }
 
 async function updateJob(id, body) {
@@ -84,7 +100,17 @@ async function updateJob(id, body) {
   if (patch.title) patch.title = patch.title.trim();
   if (patch.location) patch.location = patch.location.trim();
 
-  return repo.update(id, patch);
+  const updated = await repo.update(id, patch);
+  await invalidateJobCaches(id);
+  return updated;
+}
+
+// Event-based invalidation: any write to jobs makes list caches AND
+// per-student recommendation caches stale.
+async function invalidateJobCaches(jobId) {
+  await cache.del('jobs:list:*');
+  await cache.del('recs:*');
+  if (jobId) await cache.del(`job:${jobId}`);
 }
 
 async function listJobsByCompany(companyId, q) {
@@ -100,8 +126,18 @@ function buildListMeta(q, total) {
 }
 
 // Task 8: relational feature — jobs a student is a good match for.
-// One bounded query for skills, one for jobs — total 2 regardless of catalogue size.
+// Task 9: cached with a longer TTL because it's expensive to compute.
+// Invalidated by job writes (invalidateJobCaches uses del('recs:*')).
 async function recommendedForStudent(studentId) {
+  const key = `recs:${studentId}`;
+  const { data, cached } = await cache.wrap(key, 120, async () => {
+    return computeRecommendations(studentId);
+  });
+  // Attach hit/miss marker for observability + demo
+  return Object.assign(data.slice(), { _cache: cached ? 'hit' : 'miss' });
+}
+
+async function computeRecommendations(studentId) {
   const studentRepo = require('../students/student.repository');
   const skillRepo = require('../skills/skill.repository');
   const jobRepo = require('./job.db.repository');
@@ -115,7 +151,6 @@ async function recommendedForStudent(studentId) {
   const skillIds = (await skillRepo.findIdsByNames([...skillNames])).map((s) => s.id);
   const jobs = await jobRepo.findWithSkillOverlap(skillIds);
 
-  // Rank by overlap count — cheap in memory, set already bounded by the query
   return jobs
     .map((job) => {
       const jobSkillNames = (job.jobSkills || []).map((js) => js.skill.name.toLowerCase());
