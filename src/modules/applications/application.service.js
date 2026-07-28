@@ -104,6 +104,18 @@ async function createApplication(body, idempotencyKey, actor) {
   };
 
   const created = await repo.create(application);
+
+  // Emit AFTER commit — never inside a transaction. A phantom event
+  // for a rolled-back application is very hard to debug.
+  try {
+    const { emitApplicationCreated, bumpStat } = require('../../realtime/handlers');
+    emitApplicationCreated({ application: created, job });
+    bumpStat(body.jobId);
+  } catch (e) {
+    // Realtime is best-effort; a broken emit must not break the request
+    console.warn(JSON.stringify({ level: 'warn', component: 'realtime', message: 'emit failed', error: e.message }));
+  }
+
   return { application: created, replayed: false };
 }
 
@@ -121,7 +133,14 @@ async function updateStatus(id, body) {
     );
   }
 
-  return repo.update(id, { status: body.status, updatedAt: new Date().toISOString() });
+  const updated = await repo.update(id, { status: body.status, updatedAt: new Date().toISOString() });
+  try {
+    const { emitApplicationStatus } = require('../../realtime/handlers');
+    emitApplicationStatus({ application: updated });
+  } catch (e) {
+    console.warn(JSON.stringify({ level: 'warn', component: 'realtime', message: 'emit failed', error: e.message }));
+  }
+  return updated;
 }
 
 async function withdrawApplication(id, actor) {
